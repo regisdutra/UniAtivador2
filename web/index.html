@@ -22,7 +22,7 @@ button:hover{filter:brightness(1.12)}button:disabled{opacity:.42;cursor:default}
 .warning{background:#352a17;border-left-color:#dfa755;color:#f6deb0}
 .tabs{display:flex;gap:5px;flex-wrap:wrap;margin:15px 0 12px}.tabs button{padding:9px 11px;font-size:12px}.tabs .active{background:#2b62b0}
 textarea{font-family:ui-monospace,Consolas,monospace;font-size:12px;min-height:290px;resize:vertical;line-height:1.5}
-.status{min-height:22px;margin-top:14px;color:#9cc8ff;font-size:13px}
+.mac-selector{display:flex;gap:10px;flex-wrap:wrap;margin:8px 0 12px}.mac-selector label{display:flex;align-items:center;gap:8px;border:1px solid #3e557a;border-radius:10px;padding:10px;background:#0b1528;margin:0;cursor:pointer;font-size:13px;flex:1;min-width:165px}.mac-selector input{width:auto;accent-color:#6ea7ff}#mac[readonly]{background:#122443;color:#a9bedf}.status{min-height:22px;margin-top:14px;color:#9cc8ff;font-size:13px}
 .meta{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .chip{padding:6px 10px;border:1px solid #41628e;border-radius:99px;color:#b1d6ff;font-size:12px;background:#16284a}
 footer{padding:25px 0 10px;text-align:center;color:#8fa0be;font-size:12px}
@@ -40,8 +40,14 @@ footer{padding:25px 0 10px;text-align:center;color:#8fa0be;font-size:12px}
 <div class="layout">
  <section class="panel">
   <h2>Parâmetros</h2>
-  <label for="mac">MAC de referência</label>
-  <input id="mac" value="9C:00:D3:EC:AA:01" spellcheck="false" autocomplete="off" maxlength="17">
+  <label>Escolha como definir o MAC</label>
+  <div class="mac-selector" role="radiogroup" aria-label="Origem do MAC">
+    <label><input id="macAuto" type="radio" name="macMode" value="automatic" checked> Gerar automaticamente</label>
+    <label><input id="macManual" type="radio" name="macMode" value="manual"> Informar MAC</label>
+  </div>
+  <label for="mac">MAC utilizado</label>
+  <input id="mac" value="9C:00:D3:EC:AA:01" spellcheck="false" autocomplete="off" maxlength="17" readonly>
+  <small id="macHint">Automático: gerado no padrão 9C:00:D3:EC:AA:XX do repositório.</small>
   <label for="user">Identificador de usuário (opcional)</label>
   <input id="user" placeholder="Gerado automaticamente" autocomplete="off" maxlength="20">
   <label for="channel">Modelo / canal</label>
@@ -88,14 +94,24 @@ function bytesFromHex(s){var out=[];for(var i=0;i<s.length;i+=2)out.push(parseIn
 function encode64(a){return btoa(String.fromCharCode.apply(null,a))}
 function asciiHex(s){var out="";for(var i=0;i<s.length;i++)out+=s.charCodeAt(i).toString(16).padStart(2,"0");return out}
 function randomInt(n){return rng(1)[0]%n}
-function randomMac(){return Array.from(rng(6),function(x){return x.toString(16).padStart(2,"0").toUpperCase()}).join(":")}
+function smartMac(){return "9C:00:D3:EC:AA:"+rng(1)[0].toString(16).padStart(2,"0").toUpperCase()}
+function updateMacMode(){
+var manual=el("macManual").checked;
+el("mac").readOnly=!manual;
+el("randomMac").hidden=manual;
+el("macHint").textContent=manual?"Informe o MAC que deseja usar. O arquivo refletirá esse valor.":"Automático: a cada geração, um novo MAC no padrão 9C:00:D3:EC:AA:XX do repositório.";
+message(manual?"Modo manual selecionado. Informe seu MAC.":"Modo automático selecionado.");
+}
 function randomUser(){return "5"+String((10000000+(Math.floor(Math.random()*90000000))))}
 function uuid(){var a=rng(16);a[6]=(a[6]&15)|64;a[8]=(a[8]&63)|128;var s=hex(a);return s.slice(0,8)+"-"+s.slice(8,12)+"-"+s.slice(12,16)+"-"+s.slice(16,20)+"-"+s.slice(20)}
 function stamp(){var now=new Date(Date.now()+8*3600000);var days=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"],months=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];return "#"+days[now.getUTCDay()]+" "+months[now.getUTCMonth()]+" "+String(now.getUTCDate()).padStart(2,"0")+" "+now.toISOString().slice(11,19)+" GMT+08:00 "+now.getUTCFullYear()}
 function xmlEsc(s){return String(s).replace(/[<>&"']/g,function(c){return {"<":"&lt;",">":"&gt;","&":"&amp;","\"":"&quot;","'":"&apos;"}[c]})}
 function generate(){
 try {
-var mac=el("mac").value.trim().toUpperCase();if(!/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(mac))throw Error("Informe um MAC no formato 00:11:22:AA:BB:CC.");
+var manual=el("macManual").checked;
+var mac=manual?el("mac").value.trim().toUpperCase():smartMac();
+if(!/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(mac))throw Error("Informe um MAC no formato 00:11:22:AA:BB:CC.");
+el("mac").value=mac;
 var uid=el("user").value.trim()||randomUser(),chan=el("channel").value.trim()||"SBTHD";
 var last=mac.slice(-2),token=asciiHex(encode64(bytesFromHex(B0+B1[last[0]]+B2[last[1]])));
 var deviceBlock=Array.from(rng(8)).concat(bytesFromHex(suffixes[randomInt(suffixes.length)]));
@@ -115,7 +131,10 @@ function download(){if(!files[current])return;var blob=new Blob([files[current]]
 function nativeSave(){if(!files[".config"])return message("Gere uma configuração primeiro.");try{window.AndroidLocal.saveConfig(files[".config"])}catch(e){message("Falha ao solicitar gravação: "+e.message)}}
 function pickerSave(){if(!files[".config"])return message("Gere uma configuração primeiro.");try{window.AndroidLocal.openPicker(files[".config"])}catch(e){message("Seletor indisponível: "+e.message)}}
 window.nativeStatus=message;
-el("randomMac").addEventListener("click",function(){el("mac").value=randomMac();message("MAC de teste sorteado.")});
+el("randomMac").addEventListener("click",function(){el("mac").value=smartMac();message("Novo MAC de teste sorteado.")});
+el("macAuto").addEventListener("change",updateMacMode);
+el("macManual").addEventListener("change",updateMacMode);
+updateMacMode();
 el("generate").addEventListener("click",generate);
 el("download").addEventListener("click",download);
 el("nativeSave").addEventListener("click",nativeSave);
