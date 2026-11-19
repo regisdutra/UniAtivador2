@@ -1,0 +1,57 @@
+name: Inspecionar UniTV 4.22.0 anterior ao iJiami
+on:
+  push:
+    paths: ['.github/workflows/inspect-unitv-422.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download and verify public 4.22.0 release
+        run: |
+          curl -fsSL --retry 2 "https://github.com/ISLprime-TV/Unitv/releases/download/unitv-4.22.0/UniTV4.22.0.apk" -o /tmp/UniTV4.22.0.apk
+          echo "22342be13c44481978e2dd08715b6cbc42b3e6ae9ef218d85aaf414cda5c8630  /tmp/UniTV4.22.0.apk" | sha256sum -c -
+      - name: Inspect DEX signatures, native libs and manifest
+        run: |
+          python3 - <<'PY'
+          import zipfile,struct,json,hashlib,collections,math
+          p='/tmp/UniTV4.22.0.apk'
+          with zipfile.ZipFile(p) as z:
+            names=z.namelist()
+            dexes=[n for n in names if n.endswith('.dex')]
+            libs=[n for n in names if n.endswith('.so')]
+            interesting=['ijiami','dexhelper','dexjni','libexec','secneo','dexdata','bangcle','stub','apkwrapper','protect']
+            protected=[n for n in names if any(k in n.lower() for k in interesting)]
+            dx=[]
+            for name in dexes:
+              b=z.read(name)
+              record={'name':name,'bytes':len(b)}
+              if b[:4]==b'dex\n' and len(b)>=112:
+                u=lambda x:struct.unpack_from('<I',b,x)[0]
+                record.update(classes=u(0x60),strings=u(0x38),dex_file_size=u(0x20),
+                  extra_after_declared_data=max(0,len(b)-u(0x68)-u(0x6c)),
+                  has_secneo=b'secneo' in b.lower(),has_iJiami=b'ijiami' in b.lower(),
+                  has_dexdata=b'dexdata0' in b.lower())
+              dx.append(record)
+            result={'zip_count':len(names),'zip_crc_error':z.testzip(),'dex':dx,'native_count':len(libs),
+              'abis':sorted(set(x.split('/')[1] for x in libs if x.startswith('lib/'))),
+              'protected_components':protected[:65],
+              'assets_first_40':[n for n in names if n.startswith('assets/')][:40],
+              'certificate_files':[n for n in names if n.startswith('META-INF/') and n.endswith(('.RSA','.DSA','.EC'))]}
+            print('=== VERSION 4.22.0 ANALYSIS ===')
+            print(json.dumps(result,ensure_ascii=False,indent=2))
+            open('unitv422.json','w').write(json.dumps(result,ensure_ascii=False,indent=2))
+          PY
+          echo "=== BADGING ==="
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging /tmp/UniTV4.22.0.apk | grep -E "^(package:|sdkVersion:|targetSdkVersion:|launchable-activity:|native-code:)" | head -n 20
+          echo "=== SIGNATURE ==="
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs /tmp/UniTV4.22.0.apk 2>&1 | grep -E "^(Verifies|Verified using|Number of signers|Signer #1 certificate SHA-256 digest:|DOES NOT VERIFY|ERROR:)" | head -n 20 || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unitv-4-22-analysis
+          path: unitv422.json
+          retention-days: 30
