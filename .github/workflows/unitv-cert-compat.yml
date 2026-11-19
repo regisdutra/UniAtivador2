@@ -1,0 +1,62 @@
+name: Identidade e compatibilidade UniTV 5.1-5.9
+on:
+  push:
+    paths: ['.github/workflows/unitv-cert-compat.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download verified UniTV 5.9.0
+        run: |
+          curl -fsSL --retry 2 "https://github.com/ISLprime-TV/Unitv/releases/download/v5.9.0/Unitv.apk" -o /tmp/unitv59.apk
+          echo "a35e4ef9494b1241686f86afdc83deefa0ef6bce874bab946db015cdf5f2bb16  /tmp/unitv59.apk" | sha256sum -c -
+      - name: Compare official package metadata and signer certificates
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess,json,re,zipfile
+          base=Path('/usr/local/lib/android/sdk/build-tools/35.0.0')
+          aapt=str(base/'aapt')
+          signer=str(base/'apksigner')
+          files={
+            '5.1.0':'apps/UniTV Free 5.1.0.apk',
+            '5.7.2':'apps/UniTV Free 5.7.2.apk',
+            '5.8.0':'apps/UniTV Free 5.8.0.apk',
+            '5.9.0':'/tmp/unitv59.apk'
+          }
+          results={}
+          for v,p in files.items():
+            m=subprocess.run([aapt,'dump','badging',p],capture_output=True,text=True)
+            s=subprocess.run([signer,'verify','--verbose','--print-certs',p],capture_output=True,text=True)
+            # certificate fingerprints are public metadata; do not emit private material
+            values={}
+            for line in m.stdout.splitlines():
+              if line.startswith(('package:','sdkVersion:','targetSdkVersion:','launchable-activity:','native-code:')):
+                values[line.split(':',1)[0]]=line[:500]
+            values['requested_permissions']=[x.split("name='")[-1].split("'")[0] for x in m.stdout.splitlines() if x.startswith('uses-permission:')]
+            values['permission_count']=len(values['requested_permissions'])
+            values['certificate_sha256']=[x.split(': ',1)[1].strip() for x in s.stdout.splitlines() if 'certificate SHA-256 digest: ' in x]
+            values['signature_verified']='Verifies' in s.stdout and s.returncode==0
+            values['signature_schemes']=[x for x in s.stdout.splitlines() if x.startswith('Verified using v')]
+            with zipfile.ZipFile(p) as z:
+              values['file_count']=len(z.namelist())
+              values['abi_names']=sorted({x.split('/')[1] for x in z.namelist() if x.startswith('lib/') and x.endswith('.so')})
+            results[v]=values
+          for vers,v in results.items():
+            print('VERSION',vers)
+            print(json.dumps(v,ensure_ascii=False,indent=2))
+          older=results['5.1.0']['certificate_sha256']
+          newer=results['5.9.0']['certificate_sha256']
+          print('SAME_SIGNER_51_59',bool(older and older==newer))
+          Path('unitv-cert-compat.json').write_text(json.dumps(results,ensure_ascii=False,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unitv-certs-compat
+          path: unitv-cert-compat.json
+          retention-days: 30
