@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0b1020">
+<title>UniAtivador2 | Config Studio</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#080f1f;color:#e8eeff}*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(ellipse at 0 0,#182b52 0,#0b1123 36%,#080f1f 82%);min-height:100vh;line-height:1.5}
+main{max-width:1120px;margin:auto;padding:24px}header{display:flex;gap:18px;align-items:center;justify-content:space-between;margin-bottom:22px;flex-wrap:wrap}h1{margin:0;font-size:clamp(25px,4vw,35px)}h2{margin:0 0 10px;font-size:18px}p{margin:6px 0 14px;color:#b6c6e7}.eyebrow{font-size:12px;text-transform:uppercase;letter-spacing:2px;color:#7db9ff}
+small{color:#97a9cf}.layout{display:grid;grid-template-columns:minmax(290px,400px) minmax(0,1fr);gap:18px}
+.panel{background:#111c31e8;border:1px solid #263c62;border-radius:16px;padding:22px;box-shadow:0 18px 48px #01071855}
+label{display:block;font-size:13px;font-weight:650;color:#cbd7f1;margin:15px 0 5px}
+input,select,textarea{width:100%;background:#0b1528;color:#eaf2ff;border:1px solid #3e557a;padding:12px;border-radius:10px;font:inherit;outline:none}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:3px solid #86b8ff;outline-offset:2px}
+button{border:1px solid #406eb7;border-radius:10px;padding:12px 15px;font-size:14px;cursor:pointer;background:#253c5d;color:#f3f7ff;font-weight:700}
+button.primary{background:linear-gradient(90deg,#296ce0,#3f79ec);border-color:#639aff}button.secondary{background:#142746}
+button:hover{filter:brightness(1.12)}button:disabled{opacity:.42;cursor:default}
+.actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:17px}.actions button{flex:1;min-width:145px}
+.note{background:#0d203b;border-left:3px solid #83b7ff;border-radius:5px;padding:12px;font-size:13px;color:#cddbf8;margin-top:18px}
+.warning{background:#352a17;border-left-color:#dfa755;color:#f6deb0}
+.tabs{display:flex;gap:5px;flex-wrap:wrap;margin:15px 0 12px}.tabs button{padding:9px 11px;font-size:12px}.tabs .active{background:#2b62b0}
+textarea{font-family:ui-monospace,Consolas,monospace;font-size:12px;min-height:290px;resize:vertical;line-height:1.5}
+.mac-selector{display:flex;gap:10px;flex-wrap:wrap;margin:8px 0 12px}.mac-selector label{display:flex;align-items:center;gap:8px;border:1px solid #3e557a;border-radius:10px;padding:10px;background:#0b1528;margin:0;cursor:pointer;font-size:13px;flex:1;min-width:165px}.mac-selector input{width:auto;accent-color:#6ea7ff}#mac[readonly]{background:#122443;color:#a9bedf}.status{min-height:22px;margin-top:14px;color:#9cc8ff;font-size:13px}
+.meta{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.chip{padding:6px 10px;border:1px solid #41628e;border-radius:99px;color:#b1d6ff;font-size:12px;background:#16284a}
+footer{padding:25px 0 10px;text-align:center;color:#8fa0be;font-size:12px}
+@media(max-width:840px){.layout{grid-template-columns:1fr}main{padding:15px}.panel{padding:18px}}
+@media(min-width:1500px){body{font-size:19px}button,input{font-size:18px;padding:15px}main{max-width:1350px}}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <div><div class="eyebrow">UniAtivador2 • Web + Android TV</div><h1>Gerador local de configurações</h1>
+  <p>Gera arquivos de teste no próprio navegador ou na TV Box, sem computador e sem ADB.</p></div>
+  <span class="chip" id="modeLabel">Modo web local</span>
+</header>
+<div class="layout">
+ <section class="panel">
+  <h2>Parâmetros</h2>
+  <label>Escolha como definir o MAC</label>
+  <div class="mac-selector" role="radiogroup" aria-label="Origem do MAC">
+    <label><input id="macAuto" type="radio" name="macMode" value="automatic" checked> Gerar automaticamente</label>
+    <label><input id="macManual" type="radio" name="macMode" value="manual"> Informar MAC</label>
+  </div>
+  <label for="mac">MAC utilizado</label>
+  <input id="mac" value="9C:00:D3:EC:AA:01" spellcheck="false" autocomplete="off" maxlength="17" readonly>
+  <small id="macHint">Automático: gerado no padrão 9C:00:D3:EC:AA:XX do repositório.</small>
+  <label for="user">Identificador de usuário (opcional)</label>
+  <input id="user" placeholder="Gerado automaticamente" autocomplete="off" maxlength="20">
+  <label for="channel">Modelo / canal</label>
+  <input id="channel" value="SBTHD" spellcheck="false" maxlength="30">
+  <div class="actions">
+    <button class="secondary" id="randomMac">Sortear MAC</button>
+    <button class="primary" id="generate">Gerar configuração</button>
+  </div>
+  <div class="note warning"><strong>Importante:</strong> o gerador reproduz a estrutura de teste identificada no repositório. Não comprova licença válida, saldo de dias ou ativação em serviços externos.</div>
+  <div class="note" id="saveHelp">Na página web, o arquivo é baixado pelo navegador. O salvamento direto no diretório /Android/ fica disponível no APK instalado no próprio aparelho.</div>
+ </section>
+ <section class="panel">
+  <div class="meta"><h2 style="margin:0;flex:1">Resultado</h2><span class="chip" id="size">Nenhum arquivo</span></div>
+  <div class="tabs">
+   <button data-file=".config" class="active">.config</button>
+   <button data-file=".properties">.properties</button>
+   <button data-file="cache.config.xml">cache.config.xml</button>
+  </div>
+  <textarea id="preview" spellcheck="false" readonly aria-label="Prévia do arquivo"></textarea>
+  <div class="actions">
+   <button id="download" class="secondary" disabled>Baixar arquivo</button>
+   <button id="nativeSave" class="primary" hidden>Salvar em /Android/</button>
+   <button id="pickerSave" class="secondary" hidden>Escolher destino</button>
+  </div>
+  <div id="status" class="status" role="status" aria-live="polite">Selecione “Gerar configuração”.</div>
+  <small>O conteúdo é produzido no dispositivo. Não há consulta a Supabase, Firebase, ADB ou ao servidor do projeto.</small>
+ </section>
+</div>
+<footer>UniAtivador2 • Gerador experimental e independente • Não sobrescreva configurações legítimas sem backup.</footer>
+</main>
+<script>
+(function(){
+"use strict";
+var B0="268ea2dd4b1dbec8";
+var B1={"0":"b2e21fcbcf6df76d","1":"920694d567b2a07d","2":"9b7d9b3e9ec105b3","3":"98e2032e347b3591","4":"3163c73fbe1a4ffa","5":"45abc8a31a02ea9f","6":"a9fb9b1b0249787f","7":"bfdbe907efc33064","8":"d77d20021f080cab","9":"2719e91949656f1b","A":"b73b243532d8502e","B":"34b9b4bc32d17b8e","C":"8d11170734f47d56","D":"8487ea725540e922","E":"414d4d7639f52efb","F":"3488819e28a84faf"};
+var B2={"0":"ec47a53b333a619e","1":"2a935d5bbcd64d62","2":"163c36b43ae1d4fa","3":"b2c8f1b1b33c9d81","4":"f5dd5a8a7c0cf9b0","5":"8e54348d52c70597","6":"4da157ce4aaf762e","7":"397cf2d9b2390038","8":"3b8def964df8b50a","9":"1c2c11d4ded14e5a","A":"ba7c8877b591bb52","B":"6b50a8b78d6fd8b4","C":"3b5822cbe634c13a","D":"e02919d91e0a66d3","E":"52e9caee7f1a51d4","F":"5c5d710f55cc6978"};
+var suffixes=["163c36b43ae1d4fa","f5dd5a8a7c0cf9b0","4da157ce4aaf762e","3b8def964df8b50a","ec47a53b333a619e"];
+var NBT="366b36373669396f4b4a396f6a6f456c6b5730374976582b547344706d5a7275654e34567a5777787167516776396148656d565550773d3d";
+var files={},current=".config";
+function el(id){return document.getElementById(id)}
+function rng(n){var out=new Uint8Array(n);if(window.crypto && window.crypto.getRandomValues)window.crypto.getRandomValues(out);else for(var i=0;i<n;i++)out[i]=Math.floor(Math.random()*256);return out}
+function hex(bytes){return Array.prototype.map.call(bytes,function(x){return x.toString(16).padStart(2,"0")}).join("")}
+function bytesFromHex(s){var out=[];for(var i=0;i<s.length;i+=2)out.push(parseInt(s.slice(i,i+2),16));return out}
+function encode64(a){return btoa(String.fromCharCode.apply(null,a))}
+function asciiHex(s){var out="";for(var i=0;i<s.length;i++)out+=s.charCodeAt(i).toString(16).padStart(2,"0");return out}
+function randomInt(n){return rng(1)[0]%n}
+function smartMac(){return "9C:00:D3:EC:AA:"+rng(1)[0].toString(16).padStart(2,"0").toUpperCase()}
+function updateMacMode(){
+var manual=el("macManual").checked;
+el("mac").readOnly=!manual;
+el("randomMac").hidden=manual;
+el("macHint").textContent=manual?"Informe o MAC que deseja usar. O arquivo refletirá esse valor.":"Automático: a cada geração, um novo MAC no padrão 9C:00:D3:EC:AA:XX do repositório.";
+message(manual?"Modo manual selecionado. Informe seu MAC.":"Modo automático selecionado.");
+}
+function randomUser(){return "5"+String((10000000+(Math.floor(Math.random()*90000000))))}
+function uuid(){var a=rng(16);a[6]=(a[6]&15)|64;a[8]=(a[8]&63)|128;var s=hex(a);return s.slice(0,8)+"-"+s.slice(8,12)+"-"+s.slice(12,16)+"-"+s.slice(16,20)+"-"+s.slice(20)}
+function stamp(){var now=new Date(Date.now()+8*3600000);var days=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"],months=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];return "#"+days[now.getUTCDay()]+" "+months[now.getUTCMonth()]+" "+String(now.getUTCDate()).padStart(2,"0")+" "+now.toISOString().slice(11,19)+" GMT+08:00 "+now.getUTCFullYear()}
+function xmlEsc(s){return String(s).replace(/[<>&"']/g,function(c){return {"<":"&lt;",">":"&gt;","&":"&amp;","\"":"&quot;","'":"&apos;"}[c]})}
+function generate(){
+try {
+var manual=el("macManual").checked;
+var mac=manual?el("mac").value.trim().toUpperCase():smartMac();
+if(!/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(mac))throw Error("Informe um MAC no formato 00:11:22:AA:BB:CC.");
+el("mac").value=mac;
+var uid=el("user").value.trim()||randomUser(),chan=el("channel").value.trim()||"SBTHD";
+var last=mac.slice(-2),token=asciiHex(encode64(bytesFromHex(B0+B1[last[0]]+B2[last[1]])));
+var deviceBlock=Array.from(rng(8)).concat(bytesFromHex(suffixes[randomInt(suffixes.length)]));
+var device=asciiHex(encode64(deviceBlock));
+var config=["#personal info",stamp(),"key_n_bt="+NBT,"key_device_id_unitvfree="+device,"key_sn_token_unitvfree="+token,""].join("\n");
+var u=uuid(),t=Date.now(),xml=['<?xml version="1.0" encoding="utf-8" standalone="yes" ?>','<map>','    <string name="live_last_channel_code">'+xmlEsc(chan)+'</string>','    <string name="key_user_id">'+xmlEsc(uid)+'</string>','    <string name="KEY_SP_SN">'+mac+'</string>','    <string name="SP_SN_BACKUP">'+mac+',1</string>','    <string name="key_n_bt">'+u+'</string>','    <string name="key_device_id_unitvfree">'+xmlEsc(uid)+'</string>','    <long name="service_time_column_0" value="'+(t-200000000)+'" />','</map>',''].join("\n");
+files={".config":config,".properties":config,"cache.config.xml":xml};
+el("user").value=uid;
+selectFile(".config");
+el("download").disabled=false;
+message("Configuração de teste gerada localmente; não foi validada por serviço externo.");
+} catch(err){message(err.message||String(err));}
+}
+function selectFile(n){current=n;el("preview").value=files[n]||"";el("size").textContent=files[n]?new Blob([files[n]]).size+" bytes":"Nenhum arquivo";document.querySelectorAll("[data-file]").forEach(function(x){x.classList.toggle("active",x.getAttribute("data-file")===n)})}
+function message(text){el("status").textContent=text}
+function download(){if(!files[current])return;var blob=new Blob([files[current]],{type:"application/octet-stream"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=current;a.click();setTimeout(function(){URL.revokeObjectURL(url)},500);message("Download solicitado: "+current)}
+function nativeSave(){if(!files[".config"])return message("Gere uma configuração primeiro.");try{window.AndroidLocal.saveConfig(files[".config"])}catch(e){message("Falha ao solicitar gravação: "+e.message)}}
+function pickerSave(){if(!files[".config"])return message("Gere uma configuração primeiro.");try{window.AndroidLocal.openPicker(files[".config"])}catch(e){message("Seletor indisponível: "+e.message)}}
+window.nativeStatus=message;
+el("randomMac").addEventListener("click",function(){el("mac").value=smartMac();message("Novo MAC de teste sorteado.")});
+el("macAuto").addEventListener("change",updateMacMode);
+el("macManual").addEventListener("change",updateMacMode);
+updateMacMode();
+el("generate").addEventListener("click",generate);
+el("download").addEventListener("click",download);
+el("nativeSave").addEventListener("click",nativeSave);
+el("pickerSave").addEventListener("click",pickerSave);
+document.querySelectorAll("[data-file]").forEach(function(node){node.addEventListener("click",function(){selectFile(node.getAttribute("data-file"))})});
+if(window.AndroidLocal&&typeof window.AndroidLocal.saveConfig==="function"){
+el("modeLabel").textContent="Android TV • Offline";
+el("nativeSave").hidden=false;el("pickerSave").hidden=false;
+el("saveHelp").textContent="No APK, use 'Salvar em /Android/' para tentar gravar /storage/emulated/0/Android/.config diretamente. O Android pode negar acesso; nesse caso use 'Escolher destino'.";
+}
+})();
+</script>
+</body>
+</html>
