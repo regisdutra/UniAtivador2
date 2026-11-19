@@ -1,0 +1,83 @@
+name: Comparar UniTV antigo e atual
+on:
+  push:
+    paths:
+      - '.github/workflows/compare-unitv-legacy.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Retrieve release 5.9.0 for comparison
+        run: |
+          curl -fsSL --retry 2 "https://github.com/ISLprime-TV/Unitv/releases/download/v5.9.0/Unitv.apk" -o /tmp/unitv59.apk
+          echo "a35e4ef9494b1241686f86afdc83deefa0ef6bce874bab946db015cdf5f2bb16  /tmp/unitv59.apk" | sha256sum -c -
+      - name: Inspect APK versions safely
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import zipfile,struct,hashlib,json
+          paths={
+            '5.1.0':Path('apps/UniTV Free 5.1.0.apk'),
+            '5.7.2':Path('apps/UniTV Free 5.7.2.apk'),
+            '5.8.0':Path('apps/UniTV Free 5.8.0.apk'),
+            '5.9.0':Path('/tmp/unitv59.apk')
+          }
+          data={}
+          for vers,p in paths.items():
+            assert p.exists(),p
+            with zipfile.ZipFile(p) as z:
+              entries=z.namelist()
+              dexes=[s for s in entries if s.endswith('.dex')]
+              libs=[s for s in entries if s.endswith('.so')]
+              secneo=[s for s in libs if 'dexhelper' in s.lower() or 'dexjni' in s.lower() or 'secneo' in s.lower()]
+              out=[]
+              for s in dexes:
+                b=z.read(s)
+                item={'name':s,'bytes':len(b)}
+                if b[:4]==b'dex\n' and len(b)>112:
+                  u=lambda off:struct.unpack_from('<I',b,off)[0]
+                  item.update(classes=u(0x60),strings=u(0x38),
+                    claimed_size=u(0x20),extra_after_declared_data=max(0,len(b)-u(0x68)-u(0x6c)),
+                    contains_secneo=b'com/secneo/apkwrapper' in b or b'com.secneo.apkwrapper' in b,
+                    contains_dexdata0=b'dexdata0' in b,
+                    last_64_contains_fdex=b'fdex' in b[-64:])
+                out.append(item)
+              raw=p.read_bytes()
+              data[vers]={
+                'size':len(raw),'sha256':hashlib.sha256(raw).hexdigest(),
+                'zip_entries':len(entries),'zip_crc_error':z.testzip(),
+                'dex':out,'native_lib_count':len(libs),
+                'abis':sorted(set(x.split('/')[1] for x in libs if x.startswith('lib/'))),
+                'secneo_libs':secneo,
+                'dexdata_assets':[s for s in entries if s.startswith('assets/') and 'dexdata' in s],
+                'contains_v2_signature_block_magic':b'APK Sig Block 42' in raw[-2000000:]
+              }
+          print('=== COMPARATIVO ===')
+          print(json.dumps(data,indent=2,ensure_ascii=False))
+          Path('comparativo-unitv.json').write_text(json.dumps(data,indent=2,ensure_ascii=False))
+          report=['# UniTV antigo x atual - inspecao de protecao','','Analise estatica das quatro versoes sem modificacao dos APKs.','','| Versao | MB | Classes declaradas | SecNeo identificado | Bibliotecas nativas |','|---|---:|---:|---|---:|']
+          for v,d in data.items():
+            n=sum(x.get('classes',0) for x in d['dex'])
+            sec=any(x.get('contains_secneo',False) for x in d['dex']) or bool(d['secneo_libs'])
+            report.append('| '+v+' | '+str(round(d['size']/1000000,2))+' | '+str(n)+' | '+('sim' if sec else 'nao identificado')+' | '+str(d['native_lib_count'])+' |')
+          report.extend(['','## Detalhamento',''])
+          for v,d in data.items():
+            report.extend(['### '+v,'','SHA-256: '+d['sha256'],'DEX: '+json.dumps(d['dex'],ensure_ascii=False),
+              'Bibliotecas SecNeo: '+', '.join(d['secneo_libs']),
+              'Assets dexdata: '+', '.join(d['dexdata_assets']),''])
+          report.append('Limites: nao houve instalacao, execucao ou tentativa de contornar sistemas de licenca.')
+          Path('comparativo-unitv.md').write_text('\n'.join(report))
+          PY
+      - name: Attach reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: comparativo-unitv-legacy
+          path: |
+            comparativo-unitv.md
+            comparativo-unitv.json
+          retention-days: 30
