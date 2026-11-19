@@ -1,0 +1,78 @@
+name: Diagnóstico aprofundado UniTV 5.1.0 iJiami
+on:
+  push:
+    paths: ['.github/workflows/deep-inspect-unitv-51.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect manifest, SDK, signatures, native libraries
+        run: |
+          set -e
+          APK="apps/UniTV Free 5.1.0.apk"
+          echo "=== CHECKS ==="
+          sha256sum "$APK"
+          python3 - "$APK" <<'PY'
+          import sys, zipfile, hashlib, json, math, collections, struct
+          apk=sys.argv[1]
+          with zipfile.ZipFile(apk) as z:
+              names=z.namelist()
+              target=['assets/ijiami.ajm','assets/ijiami.dat','assets/IJMDal.Data','assets/signed.bin','assets/af.bin']
+              print('=== IJIAMI ASSETS ===')
+              for k in target:
+                  if k not in names:continue
+                  d=z.read(k)
+                  probs=collections.Counter(d)
+                  entropy=-sum((v/len(d))*math.log2(v/len(d)) for v in probs.values()) if d else 0
+                  print(json.dumps({'name':k,'bytes':len(d),'sha256':hashlib.sha256(d).hexdigest(),'entropy':round(entropy,3),'head_hex':d[:16].hex()}))
+              print('=== PACKAGING ===')
+              print(json.dumps({'entries':len(names),'dex':[x for x in names if x.endswith('.dex')],'native_abi':sorted(set(x.split('/')[1] for x in names if x.startswith('lib/') and x.endswith('.so'))),'META_INF_certificates':[x for x in names if x.startswith('META-INF/') and x.upper().endswith(('.RSA','.DSA','.EC'))]}))
+          PY
+          echo "=== SDK TOOLS ==="
+          which aapt || true
+          which aapt2 || true
+          which apksigner || true
+          ls "$ANDROID_HOME/build-tools/" || true
+          echo "=== MANIFEST/BADGING ==="
+          AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
+          AAPT2="$ANDROID_HOME/build-tools/35.0.0/aapt2"
+          if test -x "$AAPT"; then "$AAPT" dump badging "$APK" | grep -E "^(package:|sdkVersion:|targetSdkVersion:|uses-permission:|application-label:|launchable-activity:|native-code:)" | head -n 70
+          elif test -x "$AAPT2"; then "$AAPT2" dump badging "$APK" | grep -E "^(package:|sdkVersion:|targetSdkVersion:|uses-permission:|application-label:|launchable-activity:|native-code:)" | head -n 70
+          else echo "aapt and aapt2 absent"; fi
+          echo "=== APP COMPONENTS ==="
+          if test -x "$AAPT"; then "$AAPT" dump xmltree "$APK" AndroidManifest.xml | grep -E -C 1 '(android:name|android:exported|android:debuggable|android:process|android:targetSdkVersion|E: application|E: activity|E: provider|E: receiver|E: service)' | head -n 155 || true; fi
+          echo "=== APK SIGNATURE ==="
+          SIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          if test -x "$SIGNER"; then "$SIGNER" verify --verbose "$APK" || true; else echo "apksigner absent"; fi
+          echo "=== NATIVE LIBRARY HEADERS / IMPORTS ==="
+          python3 - "$APK" <<'PY'
+          import zipfile,sys,tempfile,os,subprocess,json
+          with zipfile.ZipFile(sys.argv[1]) as z:
+              for x in z.namelist():
+                  if not x.endswith('.so') or not any(y in x for y in ['/libexec','/libexecmain','/libboost_multidex']):continue
+                  data=z.read(x)
+                  with tempfile.NamedTemporaryFile(suffix='.so') as f:
+                      f.write(data);f.flush()
+                      rd=subprocess.run(['readelf','-h',f.name],text=True,capture_output=True)
+                      dd=subprocess.run(['readelf','-d',f.name],text=True,capture_output=True)
+                      sy=subprocess.run(['readelf','-Ws',f.name],text=True,capture_output=True)
+                      soname=[t.strip() for t in dd.stdout.splitlines() if '(NEEDED)' in t or '(SONAME)' in t]
+                      symbols=[t.split()[-1] for t in sy.stdout.splitlines() if ' GLOBAL ' in t and ' UND ' not in t and len(t.split())>=8]
+                      interesting=[s for s in symbols if any(k in s.lower() for k in ['jni','dex','load','init','app','exec','class'])]
+                      print(json.dumps({'path':x,'bytes':len(data),'architecture':next((t.strip() for t in rd.stdout.splitlines() if 'Machine:' in t),'unknown'),'needed':soname[:15],'symbols_of_interest':interesting[:20]},ensure_ascii=False))
+          PY
+      - name: Inspect differences of old and modern protection
+        run: |
+          python3 - <<'PY'
+          import zipfile
+          z=zipfile.ZipFile('apps/UniTV Free 5.1.0.apk')
+          classes=z.read('classes.dex')
+          for x in (b'assets/ijiami',b'libexec',b'ClassLoader',b'dexdata0',b'dex2oat',b'libart',b'loadDEso'):
+            print('DEX STRING',x.decode(), 'found' if x in classes else 'not found')
+          print('Asset files',len([x for x in z.namelist() if x.startswith('assets/')]))
+          PY
