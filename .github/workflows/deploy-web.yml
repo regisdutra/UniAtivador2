@@ -1,0 +1,46 @@
+name: Publicar site atualizado — UniAtivador2
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'docs/index.html'
+      - 'painel-original.html'
+      - '.github/workflows/deploy-web.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: web-uniativador2
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare static web folder (no APKs or backend)
+        run: |
+          mkdir -p site/docs site/web
+          cp index.html site/index.html
+          cp painel-original.html site/painel-original.html
+          cp docs/index.html site/docs/index.html
+          cp web/index.html site/web/index.html
+          cp logo.png site/logo.png
+          touch site/.nojekyll
+          grep -q 'v5.9.0' site/painel-original.html
+          grep -q 'UniTV Free 5.9.0' site/index.html
+          ! grep -q 'v5.8.0' site/painel-original.html
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - uses: actions/deploy-pages@v4
+        id: deployment
