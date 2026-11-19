@@ -4,7 +4,6 @@ on:
     branches: [main]
     paths:
       - 'android-app/**'
-      - 'docs/index.html'
       - '.github/workflows/build-android.yml'
   workflow_dispatch:
 permissions:
@@ -39,7 +38,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           import re
-          s=Path('docs/index.html').read_text(encoding='utf-8')
+          s=Path('android-app/app/src/main/assets/index.html').read_text(encoding='utf-8')
           js=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,flags=re.I|re.S)
           assert js, 'Missing script'
           Path('/tmp/uni-page.js').write_text(js[-1])
@@ -47,10 +46,6 @@ jobs:
               assert marker in s, marker
           PY
           node --check /tmp/uni-page.js
-      - name: Bundle web interface offline
-        run: |
-          mkdir -p android-app/app/src/main/assets
-          cp docs/index.html android-app/app/src/main/assets/index.html
       - name: Assemble signed debug APK
         working-directory: android-app
         run: gradle :app:assembleDebug --no-daemon --stacktrace
